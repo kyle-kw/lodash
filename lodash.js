@@ -3828,7 +3828,13 @@
             value = baseGet(object, path);
 
         if (predicate(value, path)) {
-          baseSet(result, castPath(path, object), value);
+          var nested = object;
+          baseSet(result, castPath(path, object), value, function(objValue, key) {
+            nested = nested == null ? undefined : nested[key];
+            if (!isObject(objValue) && isObject(nested) && !isArray(nested)) {
+              return {};
+            }
+          });
         }
       }
       return result;

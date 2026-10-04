@@ -17825,6 +17825,214 @@
       assert.deepEqual(_.pick(nested, 'b.c'), { 'b': { 'c': 2 } });
     });
 
+    QUnit.test('should preserve objects with numeric keys in deep paths', function(assert) {
+      assert.expect(8);
+
+      var object = { 'a': { '0': { 'c': 'ABC', 'd': 'DEF' } } },
+          expected = { 'a': { '0': { 'c': 'ABC' } } };
+
+      lodashStable.each(['a.0.c', 'a[0].c', ['a', '0', 'c'], ['a', 0, 'c']], function(path) {
+        var actual = _.pick(object, [path]);
+        assert.deepEqual(actual, expected);
+        assert.notOk(lodashStable.isArray(actual.a));
+      });
+    });
+
+    QUnit.test('should preserve arrays in deep paths', function(assert) {
+      assert.expect(8);
+
+      var object = { 'a': [{ 'c': 'ABC', 'd': 'DEF' }] },
+          expected = { 'a': [{ 'c': 'ABC' }] };
+
+      lodashStable.each(['a.0.c', 'a[0].c', ['a', '0', 'c'], ['a', 0, 'c']], function(path) {
+        var actual = _.pick(object, [path]);
+        assert.deepEqual(actual, expected);
+        assert.ok(lodashStable.isArray(actual.a));
+      });
+    });
+
+    QUnit.test('should preserve behavior for non-index array paths', function(assert) {
+      assert.expect(4);
+
+      var array = [{ 'b': 1 }],
+          object = { 'a': array },
+          expected = { 'a': { 'extra': { 'c': 2 } } };
+
+      array.extra = { 'c': 2, 'd': 3 };
+
+      assert.deepEqual(_.pick(object, 'a.extra.c'), expected);
+      expected.a[0] = { 'b': 1 };
+      assert.deepEqual(_.pick(object, ['a.extra.c', 'a.0.b']), expected);
+      assert.deepEqual(_.pick(object, 'a.length'), { 'a': { 'length': 1 } });
+      assert.deepEqual(_.pick(object, 'a.length.toString'), { 'a': { 'length': { 'toString': numberProto.toString } } });
+    });
+
+    QUnit.test('should not reuse array methods when picking named paths', function(assert) {
+      assert.expect(10);
+
+      lodashStable.each(['map', 'filter'], function(key) {
+        var array = [],
+            method = arrayProto[key],
+            expected = { 'a': {} };
+
+        array[key] = { 'pickPolluted': 1, 'other': 2 };
+        expected.a[key] = { 'pickPolluted': 1, 'other': 2 };
+
+        var actual = _.pick({ 'a': array }, ['a.' + key + '.pickPolluted', 'a.' + key + '.other']);
+        assert.deepEqual(actual, expected);
+        assert.notStrictEqual(actual.a[key], method);
+        assert.notStrictEqual(actual.a[key], array[key]);
+        assert.notOk(lodashStable.has(method, 'pickPolluted'));
+        assert.notOk(lodashStable.has(method, 'other'));
+      });
+    });
+
+    QUnit.test('should not reuse array methods for primitive values in named paths', function(assert) {
+      assert.expect(4);
+
+      lodashStable.each(['map', 'filter'], function(key) {
+        var array = [],
+            expected = { 'a': {} };
+
+        array[key] = 'abc';
+        expected.a[key] = ['a'];
+
+        assert.deepEqual(_.pick({ 'a': array }, 'a.' + key + '.0'), expected);
+        assert.notOk(lodashStable.has(arrayProto[key], '0'));
+      });
+    });
+
+    QUnit.test('should retain explicitly picked containers in overlapping paths', function(assert) {
+      assert.expect(3);
+
+      var array = [],
+          object = { 'a': array };
+
+      array.map = { 'b': 1, 'c': 2 };
+
+      var actual = _.pick(object, ['a', 'a.map.b']);
+      assert.strictEqual(actual.a, array);
+      assert.strictEqual(actual.a.map, array.map);
+      assert.deepEqual(array.map, { 'b': 1, 'c': 2 });
+    });
+
+    QUnit.test('should pick indexed properties of primitive strings', function(assert) {
+      assert.expect(1);
+
+      assert.deepEqual(_.pick({ 'a': 'abc' }, 'a.0'), { 'a': ['a'] });
+    });
+
+    QUnit.test('should preserve sparse arrays in deep paths', function(assert) {
+      assert.expect(3);
+
+      var object = { 'a': [{ 'b': 1 }, { 'b': 2 }, { 'b': 3 }] },
+          actual = _.pick(object, 'a[2].b');
+
+      assert.deepEqual(actual, { 'a': [, , { 'b': 3 }] });
+      assert.notOk(0 in actual.a);
+      assert.notOk(1 in actual.a);
+    });
+
+    QUnit.test('should preserve containers when picking multiple deep paths', function(assert) {
+      assert.expect(6);
+
+      var object = { 'a': { '0': { 'b': [{ 'c': 1, 'd': 2 }, { 'c': 3 }], 'e': 4 }, 'length': 'value' } },
+          expected = { 'a': { '0': { 'b': [{ 'c': 1 }, { 'c': 3 }], 'e': 4 }, 'length': 'value' } },
+          paths = ['a.0.b.0.c', 'a.0.b.1.c', 'a.0.e', 'a.length'],
+          actual = _.pick(object, paths);
+
+      assert.deepEqual(actual, expected);
+      assert.deepEqual(_.pick(object, paths.slice().reverse()), expected);
+      assert.notStrictEqual(actual.a, object.a);
+      assert.notStrictEqual(actual.a[0], object.a[0]);
+      assert.notStrictEqual(actual.a[0].b, object.a[0].b);
+      assert.deepEqual(object, { 'a': { '0': { 'b': [{ 'c': 1, 'd': 2 }, { 'c': 3 }], 'e': 4 }, 'length': 'value' } });
+    });
+
+    QUnit.test('should preserve objects with nonzero numeric keys', function(assert) {
+      assert.expect(2);
+
+      var object = { 'a': { '500': { 'b': 1 }, '4294967295': { 'c': 2 } } },
+          actual = _.pick(object, ['a.500.b', 'a.4294967295.c']);
+
+      assert.deepEqual(actual, object);
+      assert.notOk('length' in actual.a);
+    });
+
+    QUnit.test('should preserve inherited objects with numeric keys', function(assert) {
+      assert.expect(1);
+
+      function Foo() {}
+      Foo.prototype.a = { '0': { 'b': 1, 'c': 2 } };
+
+      assert.deepEqual(_.pick(new Foo, 'a.0.b'), { 'a': { '0': { 'b': 1 } } });
+    });
+
+    QUnit.test('should not create arrays for non-array object values', function(assert) {
+      assert.expect(4);
+
+      var objects = [toArgs(['a', 'b']), Object('ab'), { '0': 'a', 'length': 2 }];
+
+      lodashStable.each(objects, function(value) {
+        assert.deepEqual(_.pick({ 'a': value }, 'a.0'), { 'a': { '0': 'a' } });
+      });
+
+      if (Uint8Array) {
+        assert.deepEqual(_.pick({ 'a': new Uint8Array([1, 2]) }, 'a.0'), { 'a': { '0': 1 } });
+      }
+      else {
+        skipAssert(assert);
+      }
+    });
+
+    QUnit.test('should retain picked values by reference', function(assert) {
+      assert.expect(2);
+
+      var object = { 'a': { '0': { 'b': 1, 'c': 2 } } },
+          actual = _.pick(object, 'a.0');
+
+      assert.notStrictEqual(actual.a, object.a);
+      assert.strictEqual(actual.a[0], object.a[0]);
+    });
+
+    QUnit.test('should retain the resolved value when picking through getters', function(assert) {
+      assert.expect(3);
+
+      if (defineProperty) {
+        var count = 0,
+            object = {},
+            value = {};
+
+        defineProperty(object, 'a', {
+          'get': function() { return value; }
+        });
+        defineProperty(value, '0', {
+          'get': function() { return ++count; }
+        });
+
+        var actual = _.pick(object, 'a.0');
+        assert.deepEqual(actual, { 'a': { '0': 1 } });
+        assert.strictEqual(count, 2);
+        assert.notStrictEqual(actual.a, value);
+      }
+      else {
+        skipAssert(assert, 3);
+      }
+    });
+
+    QUnit.test('should not pick unsafe deep paths', function(assert) {
+      assert.expect(12);
+
+      lodashStable.each(['__proto__', 'constructor', 'prototype'], function(key) {
+        var object = { 'a': { '0': JSON.parse('{"' + key + '":{"pickPolluted":true}}') } };
+
+        lodashStable.each(['a.0.' + key + '.pickPolluted', ['a', '0', key, 'pickPolluted']], function(path) {
+          assert.deepEqual(_.pick(object, [path]), { 'a': { '0': {} } });
+          assert.notOk(objectProto.pickPolluted);
+        });
+      });
+    });
+
     QUnit.test('should support path arrays', function(assert) {
       assert.expect(1);
 
