@@ -10102,6 +10102,33 @@
       }
     });
 
+    QUnit.test('should preserve map key and value order', function(assert) {
+      assert.expect(4);
+
+      if (Map) {
+        var map1 = new Map,
+            map2 = new Map;
+
+        map1.set('a', 'b');
+        map2.set('b', 'a');
+        assert.strictEqual(_.isEqual(map1, map2), false);
+        assert.strictEqual(_.isEqualWith(map1, map2, noop), false);
+
+        map1.clear();
+        map2.clear();
+        map1.set([1, 2], [3, 4]);
+        map2.set([2, 1], [3, 4]);
+        assert.strictEqual(_.isEqual(map1, map2), false);
+
+        map2.clear();
+        map2.set([1, 2], [4, 3]);
+        assert.strictEqual(_.isEqual(map1, map2), false);
+      }
+      else {
+        skipAssert(assert, 4);
+      }
+    });
+
     QUnit.test('should compare maps with circular references', function(assert) {
       assert.expect(2);
 
@@ -10178,6 +10205,63 @@
       }
       else {
         skipAssert(assert, 8);
+      }
+    });
+
+    QUnit.test('should preserve array order within sets', function(assert) {
+      assert.expect(4);
+
+      if (Set) {
+        var set1 = new Set,
+            set2 = new Set;
+
+        set1.add([1, 2]);
+        set1.add([3, 4]);
+        set2.add([3, 4]);
+        set2.add([1, 2]);
+        assert.strictEqual(_.isEqual(set1, set2), true);
+
+        set2.clear();
+        set2.add([3, 4]);
+        set2.add([2, 1]);
+        assert.strictEqual(_.isEqual(set1, set2), false);
+        assert.strictEqual(_.isEqualWith(set1, set2, noop), false);
+
+        set1.clear();
+        set2.clear();
+        set1.add({ 'a': [1, 2] });
+        set2.add({ 'a': [2, 1] });
+        assert.strictEqual(_.isEqual(set1, set2), false);
+      }
+      else {
+        skipAssert(assert, 4);
+      }
+    });
+
+    QUnit.test('should compare nested maps and sets without changing array order', function(assert) {
+      assert.expect(2);
+
+      if (Map && Set) {
+        var map1 = new Map,
+            map2 = new Map,
+            set1 = new Set,
+            set2 = new Set;
+
+        map1.set('a', set1);
+        map2.set('a', set2);
+        set1.add(map1);
+        set1.add([1, 2]);
+        set2.add([1, 2]);
+        set2.add(map2);
+        assert.strictEqual(_.isEqual(map1, map2), true);
+
+        set2.clear();
+        set2.add([2, 1]);
+        set2.add(map2);
+        assert.strictEqual(_.isEqual(map1, map2), false);
+      }
+      else {
+        skipAssert(assert, 2);
       }
     });
 

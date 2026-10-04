@@ -5701,9 +5701,10 @@
      * @param {Function} customizer The function to customize comparisons.
      * @param {Function} equalFunc The function to determine equivalents of values.
      * @param {Object} stack Tracks traversed `array` and `other` objects.
+     * @param {boolean} [unordered=false] Ignore only the order of this array.
      * @returns {boolean} Returns `true` if the arrays are equivalent, else `false`.
      */
-    function equalArrays(array, other, bitmask, customizer, equalFunc, stack) {
+    function equalArrays(array, other, bitmask, customizer, equalFunc, stack, unordered) {
       var isPartial = bitmask & COMPARE_PARTIAL_FLAG,
           arrLength = array.length,
           othLength = other.length;
@@ -5719,7 +5720,7 @@
       }
       var index = -1,
           result = true,
-          seen = (bitmask & COMPARE_UNORDERED_FLAG) ? new SetCache : undefined;
+          seen = (unordered || (bitmask & COMPARE_UNORDERED_FLAG)) ? new SetCache : undefined;
 
       stack.set(array, other);
       stack.set(other, array);
@@ -5831,11 +5832,10 @@
           if (stacked) {
             return stacked == other;
           }
-          bitmask |= COMPARE_UNORDERED_FLAG;
-
           // Recursively compare objects (susceptible to call stack limits).
+          // Collection order does not affect the order of arrays in its entries.
           stack.set(object, other);
-          var result = equalArrays(convert(object), convert(other), bitmask, customizer, equalFunc, stack);
+          var result = equalArrays(convert(object), convert(other), bitmask, customizer, equalFunc, stack, true);
           stack['delete'](object);
           return result;
 
