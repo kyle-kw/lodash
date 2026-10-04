@@ -23375,6 +23375,74 @@
       }, 64);
     });
 
+    QUnit.test('`_.' + methodName + '` should clear pending timers when flushed', function(assert) {
+      assert.expect(10);
+
+      if (!isModularize) {
+        lodashStable.each([{ 'leading': false }, { 'leading': true, 'trailing': false }], function(options) {
+          var pending = [],
+              timerId = 0;
+
+          var lodash = _.runInContext({
+            'setTimeout': function() {
+              pending.push(timerId);
+              return timerId++;
+            },
+            'clearTimeout': function(id) {
+              lodashStable.pull(pending, id);
+            }
+          });
+
+          var funced = lodash[methodName](identity, 32, options);
+          assert.strictEqual(funced.flush(), undefined);
+
+          funced('a');
+          assert.deepEqual(pending, [0]);
+          assert.strictEqual(funced.flush(), 'a');
+          assert.deepEqual(pending, []);
+          assert.strictEqual(funced.flush(), 'a');
+        });
+      }
+      else {
+        skipAssert(assert, 10);
+      }
+    });
+
+    QUnit.test('`_.' + methodName + '` should preserve timers queued while flushing', function(assert) {
+      assert.expect(4);
+
+      if (!isModularize) {
+        var pending = [],
+            timerId = 0;
+
+        var lodash = _.runInContext({
+          'setTimeout': function() {
+            pending.push(timerId);
+            return timerId++;
+          },
+          'clearTimeout': function(id) {
+            lodashStable.pull(pending, id);
+          }
+        });
+
+        var funced = lodash[methodName](function(value) {
+          if (value == 'a') {
+            funced('b');
+          }
+          return value;
+        }, 32, { 'leading': false });
+
+        funced('a');
+        assert.strictEqual(funced.flush(), 'a');
+        assert.deepEqual(pending, [1]);
+        assert.strictEqual(funced.flush(), 'b');
+        assert.deepEqual(pending, []);
+      }
+      else {
+        skipAssert(assert, 4);
+      }
+    });
+
     QUnit.test('`_.' + methodName + '` should noop `cancel` and `flush` when nothing is queued', function(assert) {
       assert.expect(2);
 
